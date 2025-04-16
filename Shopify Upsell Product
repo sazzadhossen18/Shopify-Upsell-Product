@@ -1,0 +1,221 @@
+{% schema %}
+{
+  "name": "Upsell Product",
+  "settings": [
+    {
+      "type": "product",
+      "id": "upsell_product",
+      "label": "Upsell Product"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Upsell Product Block"
+    }
+  ]
+}
+{% endschema %}
+
+{% if section.settings.upsell_product != blank %}
+  {% assign product = all_products[section.settings.upsell_product] %}
+  <style>
+    #upsell-block {
+      display: flex;
+      gap: 20px;
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 800px;
+      align-items: flex-start;
+    }
+
+    #upsell-image {
+      width: 250px;
+      border-radius: 10px;
+    }
+
+    #upsell-content {
+      flex: 1;
+    }
+
+    #upsell-content h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    #upsell-content p {
+      font-size: 16px;
+      margin-bottom: 15px;
+    }
+
+    #upsell-variant {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-bottom: 15px;
+    }
+
+    .quantity-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .quantity-wrapper button {
+      padding: 6px 10px;
+      background: #eee;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    .quantity-wrapper input {
+      width: 50px;
+      text-align: center;
+      border: 1px solid #ccc;
+      padding: 6px;
+      border-radius: 6px;
+    }
+
+    #upsell-add-to-cart {
+      background-color: #000;
+      color: #fff;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      font-weight: 600;
+      transition: background 0.3s;
+    }
+
+    #upsell-add-to-cart:hover {
+      background-color: #333;
+    }
+
+    @media (max-width: 768px) {
+      #upsell-block {
+        flex-direction: column;
+      }
+
+      #upsell-image {
+        width: 100%;
+      }
+    }
+  </style>
+
+  <div id="upsell-block">
+    <img id="upsell-image" src="{{ product.featured_image | img_url: '400x' }}" alt="{{ product.title }}">
+    
+    <div id="upsell-content">
+      <h3>{{ product.title }}</h3>
+      <p id="upsell-price">{{ product.price | money }}</p>
+
+      <label for="upsell-variant" class="block mb-2 font-medium">Select Option:</label>
+      <select id="upsell-variant">
+        {% for variant in product.variants %}
+          <option 
+            value="{{ variant.id }}" 
+            data-image="{{ variant.featured_image | img_url: '400x' }}" 
+            data-price="{{ variant.price | money }}"
+            {% if forloop.first %}selected{% endif %}
+          >
+            {{ variant.title }}
+          </option>
+        {% endfor %}
+      </select>
+
+      <div class="quantity-wrapper">
+        <button type="button" id="upsell-qty-minus">–</button>
+        <input type="number" id="upsell-quantity" value="1" min="1">
+        <button type="button" id="upsell-qty-plus">+</button>
+      </div>
+
+      <button id="upsell-add-to-cart">Add to Cart</button>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const variantSelect = document.getElementById("upsell-variant");
+      const upsellImage = document.getElementById("upsell-image");
+      const upsellPrice = document.getElementById("upsell-price");
+      const addToCartBtn = document.getElementById("upsell-add-to-cart");
+      const qtyInput = document.getElementById("upsell-quantity");
+      const qtyMinus = document.getElementById("upsell-qty-minus");
+      const qtyPlus = document.getElementById("upsell-qty-plus");
+
+      // Update image and price on variant change
+        variantSelect.addEventListener("change", function(){
+          const selectedOption = variantSelect.options[variantSelect.selectedIndex];
+          const newImage = selectedOption.getAttribute("data-image");
+          const newPrice = selectedOption.getAttribute("data-price");
+
+          if(newImage){
+           upsellImage.src = newImage; 
+          }
+          
+          upsellPrice.textContent = newPrice;
+        });
+      
+      // Quantity buttons
+      qtyPlus.addEventListener("click", function(){
+        qtyInput.value = parseInt(qtyInput.value) + 1;
+      });
+
+      qtyMinus.addEventListener("click", () => {
+        if (parseInt(qtyInput.value) > 1) {
+          qtyInput.value = parseInt(qtyInput.value) - 1;
+        }
+      });
+
+      // Add to Cart via AJAX and open cart drawer
+      addToCartBtn.addEventListener("click", function() {
+        const variantId = variantSelect.value;
+        const quantity = parseInt(qtyInput.value);
+        console.log(variantId, quantity)
+
+        fetch("/cart/add.js", {
+          method: "POST",
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: variantId,
+            quantity: quantity
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          
+          const cartDrawer = document.querySelector('cart-drawer > details');
+          if (cartDrawer) {
+            cartDrawer.classList.add("menu-opening");
+            cartDrawer.setAttribute('open', '');
+          }
+          cartDrawer.classList.remove('is-empty');
+
+
+          fetch('/?section_id=mini-cart')
+          .then(res => res.text())
+          .then(html => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const newDrawer = tempDiv.querySelector('.mini-cart');
+            const existingDrawer = document.querySelector('.mini-cart');
+               if (newDrawer && existingDrawer) {
+              existingDrawer.innerHTML = newDrawer.innerHTML;
+            }
+            
+          }); 
+
+
+          
+        })
+        .catch(error => console.error("Error adding to cart:", error));
+      });
+    });
+  </script>
+{% endif %}
