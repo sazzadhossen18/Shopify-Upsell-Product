@@ -1,0 +1,276 @@
+<style>
+  .upsell-products {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+#upsell-products h2 {
+    text-align: center;
+    font-size: 16px;
+    background: #f5f5f5;
+    padding: 6px;
+}
+.upsell-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+  .upsell-card-inner {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .upsell-image-wrapper {
+    flex: 0 0 120px;
+  }
+
+ .upsell-title-price {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #000;
+    font-weight: 700;
+    font-size: 15px;
+}
+select.select__select.variant-dropdown {
+    float: left;
+    width: auto;
+    border: 1px solid #000;
+    height: auto;
+    padding: 0px 10px;
+}
+  .upsell-variant-addtocart {
+    margin-top: 15px;
+}
+  button.add-upsell-to-cart.button {
+    min-width: max-content;
+    padding: 5px 10px;
+    min-height: auto;
+    border-radius: 8px;
+    float: right;
+}
+  .upsell-details {
+    flex: 1;
+  }
+
+  .quantity-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .quantity-selector button {
+    padding: 6px 12px;
+    font-size: 18px;
+  }
+
+  .qty-input {
+    width: 50px;
+    text-align: center;
+    padding: 6px;
+  }
+  .select__select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  padding: 10px 40px 10px 15px;
+  border-radius: 6px;
+  font-size: 14px;
+  position: relative;
+  background-image: url('data:image/svg+xml;charset=UTF-8,<svg fill="none" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5" stroke="%23333" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  background-size: 16px 16px;
+  cursor: pointer;
+}
+
+.select__select:focus {
+  border-color: #333;
+  outline: none;
+}
+
+</style>
+
+<div id="upsell-products" class="upsell-products">
+  <h2> {{ block.settings.title }}</h2>
+  {% for product in block.settings.product_list %}
+    <div class="upsell-card">
+      <div class="upsell-image">
+        <img src="{{ product.featured_image | img_url: '70x' }}" class="upsell-image" alt="{{ product.title }}">
+      </div>
+      <div class="upsell-content">
+        <div class="upsell-title-price">
+          <div class="upsell-title">{{ product.title }}</div>
+          <div class="upsell-price">{{ product.price | money }}</div>
+        </div>
+        <div class="upsell-variant-addtocart">
+          <div class="variantwrapper">
+            {% if product.has_only_default_variant %}
+              <input type="hidden" class="variant-id-hidden" value="{{ product.variants.first.id }}">
+            {% else %}
+              {% for option in product.options_with_values %}
+                <select class="select__select variant-dropdown" name="options[{{ option.name | escape }}]">
+                  {% for value in option.values %}
+                    {% assign matched_variant = null %}
+                    {% for variant in product.variants %}
+                      {% if variant.available and variant.options contains value %}
+                        {% assign matched_variant = variant %}
+                        {% break %}
+                      {% endif %}
+                    {% endfor %}
+                    <option
+                      value="{{ value | escape }}"
+                      {% if matched_variant %}
+                        data-variant-id="{{ matched_variant.id }}"
+                        data-price="{{ matched_variant.price | money }}"
+                        data-image="{{ matched_variant.featured_image | img_url: '70x' }}"
+                      {% endif %}
+                    >
+                      {{ value }}
+                    </option>
+                  {% endfor %}
+             
+                </select>
+              {% endfor %}
+            {% endif %}
+           
+          </div>
+        </div>
+      </div>
+      <button type="button" class="add-upsell-to-cart button">Add</button>
+
+
+      
+    </div>
+  {% endfor %}
+</div>
+
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+
+  // Quantity buttons in cart drawer
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".quantity__button--plus")) {
+      const btn = e.target.closest(".quantity__button--plus");
+      const input = btn.closest("quantity-input").querySelector(".quantity__input");
+      const lineIndex = input.dataset.index;
+      const newQty = parseInt(input.value) + 0;
+      updateQuantity(lineIndex, newQty);
+    }
+
+    if (e.target.closest(".quantity__button--minus")) {
+      const btn = e.target.closest(".quantity__button--minus");
+      const input = btn.closest("quantity-input").querySelector(".quantity__input");
+      const lineIndex = input.dataset.index;
+      const currentQty = parseInt(input.value);
+      const newQty = Math.max(currentQty - 0, 0);
+      updateQuantity(lineIndex, newQty);
+    }
+  });
+
+  // Upsell Add to Cart (delegated)
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".add-upsell-to-cart")) {
+      const card = e.target.closest(".upsell-card");
+      let variantId = null;
+
+      // If product has variant dropdowns
+      const dropdown = card.querySelector(".variant-dropdown");
+      if (dropdown) {
+        const selectedOption = dropdown.options[dropdown.selectedIndex];
+        variantId = selectedOption.getAttribute("data-variant-id");
+      } else {
+        // Otherwise get from hidden input
+        const hiddenInput = card.querySelector(".variant-id-hidden");
+        if (hiddenInput) {
+          variantId = hiddenInput.value;
+        }
+      }
+
+      if (!variantId) {
+        console.error("No variant ID found for this upsell product.");
+        return;
+      }
+
+      fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: variantId, quantity: 1 }),
+      })
+        .then((res) => res.json())
+        .then(() => refreshCartDrawer())
+        .catch((err) => console.error("Upsell add to cart error:", err));
+    }
+  });
+
+  // Variant dropdown change event (delegated)
+  document.addEventListener("change", function (e) {
+    if (e.target.classList.contains("variant-dropdown")) {
+      const card = e.target.closest(".upsell-card");
+      const selectedOption = e.target.options[e.target.selectedIndex];
+      const newPrice = selectedOption.getAttribute("data-price");
+      const newImage = selectedOption.getAttribute("data-image");
+
+  
+
+      if (newImage) {
+        card.querySelector(".upsell-image").src = newImage;
+      }
+    }
+  });
+
+      // Product page native add-to-cart form AJAX
+  const addToCartForm = document.querySelector('form[action$="/cart/add"]');
+  if (addToCartForm) {
+    addToCartForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const formData = new FormData(addToCartForm);
+      fetch("/cart/add.js", { method: "POST", body: formData })
+        .then((res) => res.json())
+        .then(() => refreshCartDrawer())
+        .catch((err) => console.error("Add to cart error:", err));
+    });
+  }
+
+
+  // Update quantity in cart
+  function updateQuantity(lineIndex, newQty) {
+    fetch("/cart/change.js", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ line: parseInt(lineIndex), quantity: newQty }),
+    })
+      .then((res) => res.json())
+      .then(() => refreshCartDrawer());
+  }
+
+  // Refresh cart drawer
+  function refreshCartDrawer() {
+    fetch("/?section_id=cart-drawer")
+      .then((res) => res.text())
+      .then((html) => {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+        const newDrawer = tempDiv.querySelector("cart-drawer");
+        const existingDrawer = document.querySelector("cart-drawer");
+        if (newDrawer && existingDrawer) {
+          existingDrawer.innerHTML = newDrawer.innerHTML;
+        }
+
+        const cartDrawer = document.querySelector("cart-drawer");
+        if (cartDrawer) {
+          cartDrawer.classList.add("active");
+          cartDrawer.classList.remove("is-empty");
+        }
+      });
+  }
+
+});
+
+    </script>
